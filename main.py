@@ -28,7 +28,7 @@ BLUE = (0, 100, 255)
 class Game:
     def __init__(self):
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-        pygame.display.set_caption("Police Chase - Escape the Cops!")
+        pygame.display.set_caption("Caravan Express - Escape the Cops!")
         self.clock = pygame.time.Clock()
         self.font = pygame.font.Font(None, 36)
         self.large_font = pygame.font.Font(None, 72)
@@ -282,13 +282,15 @@ class Game:
         self.screen.fill((20, 20, 40))
         
         # Title
-        title_text = self.title_font.render("POLICE CHASE", True, (255, 50, 50))
-        subtitle_text = self.font.render("Escape in Your Minivan!", True, (200, 200, 200))
+        title_text = self.title_font.render("CARAVAN", True, (255, 215, 0))
+        title_text2 = self.title_font.render("EXPRESS", True, (255, 50, 50))
+        subtitle_text = self.font.render("Escape the Police Chase!", True, (200, 200, 200))
         
-        self.screen.blit(title_text, (SCREEN_WIDTH // 2 - title_text.get_width() // 2, 100))
-        self.screen.blit(subtitle_text, (SCREEN_WIDTH // 2 - subtitle_text.get_width() // 2, 190))
+        self.screen.blit(title_text, (SCREEN_WIDTH // 2 - title_text.get_width() // 2, 60))
+        self.screen.blit(title_text2, (SCREEN_WIDTH // 2 - title_text2.get_width() // 2, 140))
+        self.screen.blit(subtitle_text, (SCREEN_WIDTH // 2 - subtitle_text.get_width() // 2, 220))
         
-        # Instructions
+        # Instructions - moved left to make room
         instructions = [
             "HOW TO PLAY:",
             "",
@@ -296,41 +298,42 @@ class Game:
             "ESC / P - Pause Game",
             "",
             "RULES:",
-            "• Dodge obstacles to avoid the police",
-            "• Hit 1 obstacle = WARNING (7 seconds to recover)",
+            "• Dodge obstacles to avoid police",
+            "• Hit 1 obstacle = WARNING",
             "• Hit 2 obstacles = BUSTED!",
-            "• Collect money bags and multipliers for points",
+            "• Collect $ and multipliers",
             "",
-            "Press SPACE to Start",
-            "Press Q to Quit"
+            "Press SPACE to Start"
         ]
         
-        y_offset = 250
+        y_offset = 270
         for line in instructions:
             if line.startswith("HOW") or line.startswith("RULES"):
                 text = self.font.render(line, True, (255, 215, 0))
+                x_pos = 50
             elif line == "":
                 y_offset += 10
                 continue
             else:
                 text = self.small_font.render(line, True, WHITE)
-            self.screen.blit(text, (SCREEN_WIDTH // 2 - text.get_width() // 2, y_offset))
-            y_offset += 30
+                x_pos = 60
+            self.screen.blit(text, (x_pos, y_offset))
+            y_offset += 28
         
-        # High scores
-        high_scores = self.highscore_manager.get_top_scores(3)
+        # High scores - moved to bottom right
+        high_scores = self.highscore_manager.get_top_scores(5)
         if high_scores:
-            hs_title = self.font.render("TOP SCORES", True, (255, 215, 0))
-            self.screen.blit(hs_title, (SCREEN_WIDTH - 250, 20))
+            hs_title = self.font.render("🏆 TOP SCORES", True, (255, 215, 0))
+            self.screen.blit(hs_title, (SCREEN_WIDTH - 320, 270))
             
-            y = 60
+            y = 310
             for i, entry in enumerate(high_scores):
                 score_text = self.small_font.render(
                     f"{i+1}. {entry['score']} pts ({entry['distance']}m)",
                     True, WHITE
                 )
-                self.screen.blit(score_text, (SCREEN_WIDTH - 240, y))
-                y += 30
+                self.screen.blit(score_text, (SCREEN_WIDTH - 310, y))
+                y += 28
     
     def draw_pause(self):
         """Draw pause overlay"""
