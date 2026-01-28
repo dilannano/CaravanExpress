@@ -7,6 +7,8 @@ from collectible import Collectible
 from background import Background
 from police import PoliceCar
 from multiplier import Multiplier
+from highscore import HighScoreManager
+from sound_manager import SoundManager
 
 # Initialize Pygame
 pygame.init()
@@ -31,6 +33,18 @@ class Game:
         self.font = pygame.font.Font(None, 36)
         self.large_font = pygame.font.Font(None, 72)
         self.small_font = pygame.font.Font(None, 24)
+        self.title_font = pygame.font.Font(None, 96)
+        
+        # Game state
+        self.state = "MENU"  # MENU, PLAYING, PAUSED, GAME_OVER
+        
+        # High score and sound managers
+        self.highscore_manager = HighScoreManager()
+        try:
+            self.sound_manager = SoundManager()
+        except:
+            self.sound_manager = None  # If numpy not available
+        
         self.reset_game()
         
     def reset_game(self):
@@ -74,11 +88,11 @@ class Game:
     def spawn_multiplier(self):
         lanes = [200, 400, 600]
         lane = random.choice(lanes)
-        # Random multiplier value: 70% chance of 2x, 25% chance of 3x, 5% chance of 5x
+        # Rarer and more balanced: 80% chance of 2x, 18% chance of 3x, 2% chance of 5x
         rand = random.random()
-        if rand < 0.70:
+        if rand < 0.80:
             mult_value = 2
-        elif rand < 0.95:
+        elif rand < 0.98:
             mult_value = 3
         else:
             mult_value = 5
@@ -89,17 +103,45 @@ class Game:
             if event.type == pygame.QUIT:
                 return False
             if event.type == pygame.KEYDOWN:
-                if self.game_over and event.key == pygame.K_SPACE:
-                    self.reset_game()
-                elif not self.game_over:
-                    if event.key == pygame.K_LEFT or event.key == pygame.K_a:
+                # Menu state
+                if self.state == "MENU":
+                    if event.key == pygame.K_SPACE or event.key == pygame.K_RETURN:
+                        self.state = "PLAYING"
+                        self.reset_game()
+                    elif event.key == pygame.K_q:
+                        return False
+                        
+                # Game over state
+                elif self.state == "GAME_OVER":
+                    if event.key == pygame.K_SPACE:
+                        self.state = "PLAYING"
+                        self.reset_game()
+                    elif event.key == pygame.K_m:
+                        self.state = "MENU"
+                        
+                # Playing state
+                elif self.state == "PLAYING":
+                    if event.key == pygame.K_ESCAPE or event.key == pygame.K_p:
+                        self.state = "PAUSED"
+                    elif event.key == pygame.K_LEFT or event.key == pygame.K_a:
                         self.player.move_left()
+                        if self.sound_manager:
+                            self.sound_manager.play_sound('lane_change')
                     elif event.key == pygame.K_RIGHT or event.key == pygame.K_d:
                         self.player.move_right()
+                        if self.sound_manager:
+                            self.sound_manager.play_sound('lane_change')
+                            
+                # Paused state
+                elif self.state == "PAUSED":
+                    if event.key == pygame.K_ESCAPE or event.key == pygame.K_p:
+                        self.state = "PLAYING"
+                    elif event.key == pygame.K_m:
+                        self.state = "MENU"
         return True
         
     def update(self):
-        if self.game_over:
+        if self.state != "PLAYING":
             return
             
         # Update player
@@ -142,8 +184,8 @@ class Game:
         
         # Spawn obstacles - slower spawn rate
         self.spawn_timer += 1
-        # Slower progression: start at 90 frames, min at 50 frames
-        spawn_delay = 90 - min(self.distance // 1000, 40)
+        # Much slower progression: start at 120 frames, min at 60 frames
+        spawn_delay = 120 - min(self.distance // 1500, 60)
         if self.spawn_timer > spawn_delay:
             self.spawn_obstacle()
             self.spawn_timer = 0
@@ -156,7 +198,7 @@ class Game:
             
         # Spawn multipliers (rare power-ups)
         self.multiplier_timer += 1
-        if self.multiplier_timer > 400:  # Every ~6-7 seconds
+        if self.multiplier_timer > 800:  # Every ~13 seconds (much rarer)
             self.spawn_multiplier()
             self.multiplier_timer = 0
             
@@ -175,9 +217,18 @@ class Game:
                 if self.hit_count == 1:
                     # First hit - warning!
                     self.warning_active = True
+                    if self.sound_manager:
+                        self.sound_manager.play_sound('warning')
                 elif self.hit_count >= 2:
                     # Second hit - game over!
-                    self.game_over = True
+                    self.state = "GAME_OVER"
+                    if self.sound_manager:
+                        self.sound_manager.play_sound('game_over')
+                    # Add to high scores
+                    self.highscore_manager.add_score(self.score, self.distance)
+                else:
+                    if self.sound_manager:
+                        self.sound_manager.play_sound('hit_obstacle')
                 
         # Update collectibles (money bags)
         for collectible in self.collectibles[:]:
@@ -187,6 +238,8 @@ class Game:
             elif self.player.collects(collectible):
                 self.collectibles.remove(collectible)
                 self.score += 50 * self.score_multiplier  # Apply multiplier!
+                if self.sound_manager:
+                    self.sound_manager.play_sound('collect_money')
                 
         # Update multipliers
         for multiplier in self.multipliers[:]:
@@ -195,6 +248,8 @@ class Game:
                 self.multipliers.remove(multiplier)
             elif self.player.collects(multiplier):
                 self.multipliers.remove(multiplier)
+                if self.sound_manager:
+                    self.sound_manager.play_sound('collect_multiplier')
                 # Activate or stack multiplier
                 if self.multiplier_time_remaining > 0:
                     # Stack multipliers (max 5x)
@@ -205,10 +260,126 @@ class Game:
                 
         # Update distance and speed - much slower progression
         self.distance += self.game_speed
-        # Slower speed increase: starts at 4, increases more gradually
-        self.game_speed = 4 + self.distance // 2000
+        # Even slower speed increase: starts at 4, increases very gradually
+        self.game_speed = 4 + self.distance // 3000
         
     def draw(self):
+        if self.state == "MENU":
+            self.draw_menu()
+        elif self.state == "PLAYING":
+            self.draw_game()
+        elif self.state == "PAUSED":
+            self.draw_game()
+            self.draw_pause()
+        elif self.state == "GAME_OVER":
+            self.draw_game()
+            self.draw_game_over()
+        
+        pygame.display.flip()
+    
+    def draw_menu(self):
+        """Draw the main menu"""
+        self.screen.fill((20, 20, 40))
+        
+        # Title
+        title_text = self.title_font.render("POLICE CHASE", True, (255, 50, 50))
+        subtitle_text = self.font.render("Escape in Your Minivan!", True, (200, 200, 200))
+        
+        self.screen.blit(title_text, (SCREEN_WIDTH // 2 - title_text.get_width() // 2, 100))
+        self.screen.blit(subtitle_text, (SCREEN_WIDTH // 2 - subtitle_text.get_width() // 2, 190))
+        
+        # Instructions
+        instructions = [
+            "HOW TO PLAY:",
+            "",
+            "Arrow Keys / A,D - Switch Lanes",
+            "ESC / P - Pause Game",
+            "",
+            "RULES:",
+            "• Dodge obstacles to avoid the police",
+            "• Hit 1 obstacle = WARNING (7 seconds to recover)",
+            "• Hit 2 obstacles = BUSTED!",
+            "• Collect money bags and multipliers for points",
+            "",
+            "Press SPACE to Start",
+            "Press Q to Quit"
+        ]
+        
+        y_offset = 250
+        for line in instructions:
+            if line.startswith("HOW") or line.startswith("RULES"):
+                text = self.font.render(line, True, (255, 215, 0))
+            elif line == "":
+                y_offset += 10
+                continue
+            else:
+                text = self.small_font.render(line, True, WHITE)
+            self.screen.blit(text, (SCREEN_WIDTH // 2 - text.get_width() // 2, y_offset))
+            y_offset += 30
+        
+        # High scores
+        high_scores = self.highscore_manager.get_top_scores(3)
+        if high_scores:
+            hs_title = self.font.render("TOP SCORES", True, (255, 215, 0))
+            self.screen.blit(hs_title, (SCREEN_WIDTH - 250, 20))
+            
+            y = 60
+            for i, entry in enumerate(high_scores):
+                score_text = self.small_font.render(
+                    f"{i+1}. {entry['score']} pts ({entry['distance']}m)",
+                    True, WHITE
+                )
+                self.screen.blit(score_text, (SCREEN_WIDTH - 240, y))
+                y += 30
+    
+    def draw_pause(self):
+        """Draw pause overlay"""
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+        overlay.set_alpha(180)
+        overlay.fill(BLACK)
+        self.screen.blit(overlay, (0, 0))
+        
+        pause_text = self.large_font.render("PAUSED", True, (255, 215, 0))
+        resume_text = self.font.render("Press ESC/P to Resume", True, WHITE)
+        menu_text = self.font.render("Press M for Menu", True, WHITE)
+        
+        self.screen.blit(pause_text, (SCREEN_WIDTH // 2 - pause_text.get_width() // 2, 200))
+        self.screen.blit(resume_text, (SCREEN_WIDTH // 2 - resume_text.get_width() // 2, 300))
+        self.screen.blit(menu_text, (SCREEN_WIDTH // 2 - menu_text.get_width() // 2, 350))
+    
+    def draw_game_over(self):
+        """Draw game over screen with high scores"""
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+        overlay.set_alpha(128)
+        overlay.fill(BLACK)
+        self.screen.blit(overlay, (0, 0))
+        
+        game_over_text = self.large_font.render("BUSTED!", True, RED)
+        caught_text = self.font.render("The police caught you!", True, WHITE)
+        
+        self.screen.blit(game_over_text, (SCREEN_WIDTH // 2 - game_over_text.get_width() // 2, 120))
+        self.screen.blit(caught_text, (SCREEN_WIDTH // 2 - caught_text.get_width() // 2, 200))
+        
+        # Show stats
+        final_score = self.font.render(f"Final Score: {self.score}", True, (255, 215, 0))
+        final_dist = self.small_font.render(f"Distance: {self.distance}m", True, WHITE)
+        
+        self.screen.blit(final_score, (SCREEN_WIDTH // 2 - final_score.get_width() // 2, 260))
+        self.screen.blit(final_dist, (SCREEN_WIDTH // 2 - final_dist.get_width() // 2, 300))
+        
+        # Check if high score
+        if self.highscore_manager.is_high_score(self.score):
+            new_hs = self.small_font.render("★ NEW HIGH SCORE! ★", True, (255, 215, 0))
+            self.screen.blit(new_hs, (SCREEN_WIDTH // 2 - new_hs.get_width() // 2, 340))
+        
+        # Controls
+        restart_text = self.font.render("Press SPACE to Restart", True, WHITE)
+        menu_text = self.small_font.render("Press M for Menu", True, WHITE)
+        
+        self.screen.blit(restart_text, (SCREEN_WIDTH // 2 - restart_text.get_width() // 2, 400))
+        self.screen.blit(menu_text, (SCREEN_WIDTH // 2 - menu_text.get_width() // 2, 450))
+    
+    def draw_game(self):
         # Draw background
         self.background.draw(self.screen)
         
@@ -271,29 +442,6 @@ class Game:
             hit_text = self.small_font.render("One more hit and you're BUSTED!", True, WHITE)
             self.screen.blit(timer_text, (SCREEN_WIDTH // 2 - timer_text.get_width() // 2, 140))
             self.screen.blit(hit_text, (SCREEN_WIDTH // 2 - hit_text.get_width() // 2, 170))
-        
-        # Draw game over screen
-        if self.game_over:
-            overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
-            overlay.set_alpha(128)
-            overlay.fill(BLACK)
-            self.screen.blit(overlay, (0, 0))
-            
-            game_over_text = self.large_font.render("BUSTED!", True, RED)
-            caught_text = self.font.render("The police caught you!", True, WHITE)
-            final_score = self.font.render(f"Final Score: {self.score}", True, WHITE)
-            restart_text = self.font.render("Press SPACE to try again", True, WHITE)
-            
-            self.screen.blit(game_over_text, 
-                           (SCREEN_WIDTH // 2 - game_over_text.get_width() // 2, 180))
-            self.screen.blit(caught_text, 
-                           (SCREEN_WIDTH // 2 - caught_text.get_width() // 2, 260))
-            self.screen.blit(final_score, 
-                           (SCREEN_WIDTH // 2 - final_score.get_width() // 2, 310))
-            self.screen.blit(restart_text, 
-                           (SCREEN_WIDTH // 2 - restart_text.get_width() // 2, 360))
-        
-        pygame.display.flip()
         
     def run(self):
         running = True
