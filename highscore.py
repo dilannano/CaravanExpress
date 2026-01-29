@@ -1,9 +1,17 @@
 import json
 import os
+import getpass
 
 class HighScoreManager:
     def __init__(self, filename="highscores.json"):
-        self.filename = filename
+        # Get the current user's username to create separate score files
+        try:
+            username = getpass.getuser()
+        except:
+            username = "player"
+        
+        # Create a user-specific high score file
+        self.filename = f"highscores_{username}.json"
         self.high_scores = self.load_scores()
     
     def load_scores(self):
@@ -46,3 +54,15 @@ class HighScoreManager:
         if len(self.high_scores) < 5:
             return True
         return score > self.high_scores[-1]['score']
+    
+    def clear_scores(self):
+        """Clear all high scores (reset)"""
+        self.high_scores = []
+        self.save_scores()
+    
+    def get_username(self):
+        """Get the current username for display"""
+        try:
+            return getpass.getuser()
+        except:
+            return "Player"

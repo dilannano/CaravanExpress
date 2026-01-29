@@ -10,6 +10,7 @@ class SoundManager:
         
         self.sounds_enabled = True
         self.music_enabled = True
+        self.volume = 0.3  # Start at 30% volume (much quieter!)
         
         # Create simple beep sounds (we'll generate them)
         self.sounds = {
@@ -20,6 +21,9 @@ class SoundManager:
             'warning': self.create_beep(300, 200),
             'game_over': self.create_beep(150, 500)
         }
+        
+        # Set initial volume for all sounds
+        self.update_volume()
         
     def create_beep(self, frequency, duration):
         """Create a simple beep sound"""
@@ -68,6 +72,28 @@ class SoundManager:
                 self.sounds[sound_name].play()
             except:
                 pass  # Fail silently if sound doesn't work
+    
+    def update_volume(self):
+        """Update volume for all sounds"""
+        for sound in self.sounds.values():
+            sound.set_volume(self.volume)
+    
+    def increase_volume(self):
+        """Increase volume by 10%"""
+        self.volume = min(1.0, self.volume + 0.1)
+        self.update_volume()
+        return self.volume
+    
+    def decrease_volume(self):
+        """Decrease volume by 10%"""
+        self.volume = max(0.0, self.volume - 0.1)
+        self.update_volume()
+        return self.volume
+    
+    def toggle_mute(self):
+        """Mute/unmute all sounds"""
+        self.sounds_enabled = not self.sounds_enabled
+        return self.sounds_enabled
     
     def toggle_sounds(self):
         """Toggle sound effects on/off"""

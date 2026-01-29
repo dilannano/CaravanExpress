@@ -131,13 +131,33 @@ class Game:
                         self.player.move_right()
                         if self.sound_manager:
                             self.sound_manager.play_sound('lane_change')
+                    # Volume controls
+                    elif event.key == pygame.K_EQUALS or event.key == pygame.K_PLUS:
+                        if self.sound_manager:
+                            self.sound_manager.increase_volume()
+                    elif event.key == pygame.K_MINUS:
+                        if self.sound_manager:
+                            self.sound_manager.decrease_volume()
+                    elif event.key == pygame.K_m:
+                        if self.sound_manager:
+                            self.sound_manager.toggle_mute()
                             
                 # Paused state
                 elif self.state == "PAUSED":
                     if event.key == pygame.K_ESCAPE or event.key == pygame.K_p:
                         self.state = "PLAYING"
-                    elif event.key == pygame.K_m:
+                    elif event.key == pygame.K_q:
                         self.state = "MENU"
+                    # Volume controls also work in pause
+                    elif event.key == pygame.K_EQUALS or event.key == pygame.K_PLUS:
+                        if self.sound_manager:
+                            self.sound_manager.increase_volume()
+                    elif event.key == pygame.K_MINUS:
+                        if self.sound_manager:
+                            self.sound_manager.decrease_volume()
+                    elif event.key == pygame.K_m:
+                        if self.sound_manager:
+                            self.sound_manager.toggle_mute()
         return True
         
     def update(self):
@@ -296,6 +316,8 @@ class Game:
             "",
             "Arrow Keys / A,D - Switch Lanes",
             "ESC / P - Pause Game",
+            "+/- Keys - Volume Up/Down",
+            "M - Mute/Unmute",
             "",
             "RULES:",
             "• Dodge obstacles to avoid police",
@@ -323,8 +345,9 @@ class Game:
         # High scores - moved to bottom right
         high_scores = self.highscore_manager.get_top_scores(5)
         if high_scores:
-            hs_title = self.font.render("🏆 TOP SCORES", True, (255, 215, 0))
-            self.screen.blit(hs_title, (SCREEN_WIDTH - 320, 270))
+            username = self.highscore_manager.get_username()
+            hs_title = self.font.render(f"🏆 {username.upper()}'S TOP SCORES", True, (255, 215, 0))
+            self.screen.blit(hs_title, (SCREEN_WIDTH - 340, 270))
             
             y = 310
             for i, entry in enumerate(high_scores):
@@ -334,6 +357,16 @@ class Game:
                 )
                 self.screen.blit(score_text, (SCREEN_WIDTH - 310, y))
                 y += 28
+        else:
+            # No scores yet - show message
+            username = self.highscore_manager.get_username()
+            no_scores_title = self.font.render(f"{username.upper()}'S SCORES", True, (255, 215, 0))
+            no_scores_text = self.small_font.render("No scores yet!", True, WHITE)
+            play_text = self.small_font.render("Start playing to set records!", True, (150, 150, 150))
+            
+            self.screen.blit(no_scores_title, (SCREEN_WIDTH - 320, 270))
+            self.screen.blit(no_scores_text, (SCREEN_WIDTH - 310, 310))
+            self.screen.blit(play_text, (SCREEN_WIDTH - 310, 340))
     
     def draw_pause(self):
         """Draw pause overlay"""
@@ -344,7 +377,18 @@ class Game:
         
         pause_text = self.large_font.render("PAUSED", True, (255, 215, 0))
         resume_text = self.font.render("Press ESC/P to Resume", True, WHITE)
-        menu_text = self.font.render("Press M for Menu", True, WHITE)
+        menu_text = self.font.render("Press Q for Menu", True, WHITE)
+        
+        # Volume controls
+        if self.sound_manager:
+            volume_pct = int(self.sound_manager.volume * 100)
+            mute_status = "MUTED" if not self.sound_manager.sounds_enabled else f"Volume: {volume_pct}%"
+            volume_color = RED if not self.sound_manager.sounds_enabled else (200, 200, 200)
+            volume_text = self.small_font.render(mute_status, True, volume_color)
+            volume_controls = self.small_font.render("+/- to adjust | M to mute", True, (150, 150, 150))
+            
+            self.screen.blit(volume_text, (SCREEN_WIDTH // 2 - volume_text.get_width() // 2, 400))
+            self.screen.blit(volume_controls, (SCREEN_WIDTH // 2 - volume_controls.get_width() // 2, 430))
         
         self.screen.blit(pause_text, (SCREEN_WIDTH // 2 - pause_text.get_width() // 2, 200))
         self.screen.blit(resume_text, (SCREEN_WIDTH // 2 - resume_text.get_width() // 2, 300))
@@ -419,6 +463,14 @@ class Game:
         distance_text = self.font.render(f"Distance: {self.distance}m", True, WHITE)
         self.screen.blit(score_text, (10, 10))
         self.screen.blit(distance_text, (10, 50))
+        
+        # Draw volume indicator
+        if self.sound_manager:
+            volume_pct = int(self.sound_manager.volume * 100)
+            mute_status = "MUTED" if not self.sound_manager.sounds_enabled else f"Vol: {volume_pct}%"
+            volume_color = RED if not self.sound_manager.sounds_enabled else WHITE
+            volume_text = self.small_font.render(mute_status, True, volume_color)
+            self.screen.blit(volume_text, (10, 90))
         
         # Draw multiplier status
         if self.multiplier_time_remaining > 0:
